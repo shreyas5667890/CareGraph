@@ -1,0 +1,3 @@
+# Install in a clean virtual environment.
+# The model library is installed from GitHub (it is not published on PyPI).
+git+https://github.com/nlp4bia-bsc/ner-nlp4bia.git

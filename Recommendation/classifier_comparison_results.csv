@@ -1,0 +1,14 @@
+Model,Accuracy,Macro Precision,Macro Recall,Macro F1,Weighted F1,Training Time (sec)
+Logistic Regression,1.0,1.0,1.0,1.0,1.0,0.8894433975219727
+"  ""Linear SVM"": make_pipeline(
+        SimpleImputer(strategy=""most_frequent""),
+        StandardScaler(),
+        LinearSVC(
+            class_weight=""balanced"",
+            random_state=42,
+            max_iter=10000
+        )
+    ),Random Forest",1.0,1.0,1.0,1.0,1.0,2.6035566329956055
+Extra Trees,1.0,1.0,1.0,1.0,1.0,1.5824205875396729
+Gradient Boosting,1.0,1.0,1.0,1.0,1.0,55.949432134628296
+LightGBM,1.0,1.0,1.0,1.0,1.0,6.361856460571289

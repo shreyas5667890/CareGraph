@@ -1,0 +1,42 @@
+disease_raw,specialty_raw,disease,specialty
+Drug Reaction,Allergist,drug reaction,allergist
+Allergy,Allergist,allergy,allergist
+Hypertension ,Cardiologist,hypertension,cardiologist
+Heart attack,Cardiologist,heart attack,cardiologist
+Psoriasis,Dermatologist,psoriasis,dermatologist
+Chicken pox,Dermatologist,chicken pox,dermatologist
+Acne,Dermatologist,acne,dermatologist
+Impetigo,Dermatologist,impetigo,dermatologist
+Fungal infection,Dermatologist,fungal infection,dermatologist
+Hypothyroidism,Endocrinologist,hypothyroidism,endocrinologist
+Diabetes ,Endocrinologist,diabetes,endocrinologist
+Hypoglycemia,Endocrinologist,hypoglycemia,endocrinologist
+Hyperthyroidism,Endocrinologist,hyperthyroidism,endocrinologist
+GERD,Gastroenterologist,gerd,gastroenterologist
+Peptic ulcer diseae,Gastroenterologist,peptic ulcer diseae,gastroenterologist
+Jaundice,Gastroenterologist,jaundice,gastroenterologist
+Dimorphic hemmorhoids(piles),Gastroenterologist ,dimorphic hemmorhoids(piles),gastroenterologist
+Gastroenteritis,Gastroenterologist,gastroenteritis,gastroenterologist
+Urinary tract infection,Gynecologist,urinary tract infection,gynecologist
+Chronic cholestasis,Hepatologist,chronic cholestasis,hepatologist
+hepatitis A,Hepatologist,hepatitis a,hepatologist
+Hepatitis B,hepatologist,hepatitis b,hepatologist
+Hepatitis C,Hepatologist,hepatitis c,hepatologist
+Hepatitis E,Hepatologist,hepatitis e,hepatologist
+Hepatitis D,Hepatologist,hepatitis d,hepatologist
+Alcoholic hepatitis,Hepatologist,alcoholic hepatitis,hepatologist
+Malaria,Internal Medcine,malaria,internal medcine
+Dengue,Internal Medcine,dengue,internal medcine
+Migraine,Neurologist,migraine,neurologist
+Cervical spondylosis,Neurologist,cervical spondylosis,neurologist
+Paralysis (brain hemorrhage),Neurologist,paralysis (brain hemorrhage),neurologist
+AIDS,Osteopathic,aids,osteopathic
+(vertigo) Paroymsal  Positional Vertigo,Otolaryngologist,(vertigo) paroymsal  positional vertigo,otolaryngologist
+Common Cold,Otolaryngologist,common cold,otolaryngologist
+Typhoid,Pediatrician,typhoid,pediatrician
+Varicose veins,Phlebologist,varicose veins,phlebologist
+Bronchial Asthma,Pulmonologist,bronchial asthma,pulmonologist
+Pneumonia,Pulmonologist,pneumonia,pulmonologist
+Osteoarthristis,Rheumatologists,osteoarthristis,rheumatologists
+Arthritis,Rheumatologists,arthritis,rheumatologists
+Tuberculosis,Tuberculosis,tuberculosis,tuberculosis

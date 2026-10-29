@@ -1,0 +1,126 @@
+{
+  "model": "BSC-NLP4BIA/multiclinner-en-symptom-BiomedBERT",
+  "wrapper_import_seconds": 0.0139,
+  "model_initialization_seconds": 105.7889,
+  "test_count": 5,
+  "success_count": 5,
+  "failed_count": 0,
+  "mean_inference_seconds": 0.1468,
+  "tests": [
+    {
+      "test_case": "Simple sentence",
+      "input": "I have a headache.",
+      "status": "SUCCESS",
+      "inference_seconds": 0.2203,
+      "extracted_symptoms": [
+        {
+          "symptom": "headache",
+          "start": 9,
+          "end": 17,
+          "text_in_input": "headache",
+          "label": "SYMPTOM"
+        }
+      ],
+      "note": null
+    },
+    {
+      "test_case": "Multiple symptoms",
+      "input": "I have fever, cough, and a sore throat.",
+      "status": "SUCCESS",
+      "inference_seconds": 0.1638,
+      "extracted_symptoms": [
+        {
+          "symptom": "fever",
+          "start": 7,
+          "end": 12,
+          "text_in_input": "fever",
+          "label": "SYMPTOM"
+        },
+        {
+          "symptom": "cough",
+          "start": 14,
+          "end": 19,
+          "text_in_input": "cough",
+          "label": "SYMPTOM"
+        },
+        {
+          "symptom": "sore throat",
+          "start": 27,
+          "end": 38,
+          "text_in_input": "sore throat",
+          "label": "SYMPTOM"
+        }
+      ],
+      "note": null
+    },
+    {
+      "test_case": "Informal description",
+      "input": "My stomach hurts, and I feel like vomiting.",
+      "status": "SUCCESS",
+      "inference_seconds": 0.1129,
+      "extracted_symptoms": [
+        {
+          "symptom": "stomach hurts",
+          "start": 3,
+          "end": 16,
+          "text_in_input": "stomach hurts",
+          "label": "SYMPTOM"
+        },
+        {
+          "symptom": "vomiting",
+          "start": 34,
+          "end": 42,
+          "text_in_input": "vomiting",
+          "label": "SYMPTOM"
+        }
+      ],
+      "note": null
+    },
+    {
+      "test_case": "Longer paragraph",
+      "input": "For the past week, I have been feeling exhausted, experiencing headaches, and struggling to sleep.",
+      "status": "SUCCESS",
+      "inference_seconds": 0.1311,
+      "extracted_symptoms": [
+        {
+          "symptom": "headaches",
+          "start": 63,
+          "end": 72,
+          "text_in_input": "headaches",
+          "label": "SYMPTOM"
+        },
+        {
+          "symptom": "struggling to sleep",
+          "start": 78,
+          "end": 97,
+          "text_in_input": "struggling to sleep",
+          "label": "SYMPTOM"
+        }
+      ],
+      "note": null
+    },
+    {
+      "test_case": "Negated symptom",
+      "input": "I have a cough, but I do not have a fever.",
+      "status": "SUCCESS",
+      "inference_seconds": 0.1062,
+      "extracted_symptoms": [
+        {
+          "symptom": "cough",
+          "start": 9,
+          "end": 14,
+          "text_in_input": "cough",
+          "label": "SYMPTOM"
+        },
+        {
+          "symptom": "fever",
+          "start": 36,
+          "end": 41,
+          "text_in_input": "fever",
+          "label": "SYMPTOM"
+        }
+      ],
+      "note": "NER output only; verify negation/context separately."
+    }
+  ]
+}
