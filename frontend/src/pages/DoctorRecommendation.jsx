@@ -28,7 +28,6 @@ export default function DoctorRecommendation() {
   const [analysis, setAnalysis] = useState(null)
   const [recommendation, setRecommendation] = useState(null)
 
-  const [specialties, setSpecialties] = useState([])
   const [cities, setCities] = useState([])
   const [selectedSpecialty, setSelectedSpecialty] = useState('')
   const [selectedCity, setSelectedCity] = useState('')
@@ -46,15 +45,14 @@ export default function DoctorRecommendation() {
 
   const requestId = useRef(0)
 
-  // Load the specialty list from the directory once.
+  // Load the city list from the directory once.
   useEffect(() => {
     fetchSpecialties()
       .then((data) => {
-        setSpecialties(data.specialties || [])
         setCities(data.cities || [])
       })
       .catch(() => {
-        /* the directory explorer simply stays empty */
+        /* the city filter simply stays empty */
       })
   }, [])
 
@@ -230,7 +228,6 @@ export default function DoctorRecommendation() {
   )
 
   const totalPages = Math.max(1, Math.ceil((result.total || 0) / (result.pageSize || 20)))
-  const groups = recommendation?.doctor_recommendations || []
 
   return (
     <div className="stack">
@@ -323,216 +320,182 @@ export default function DoctorRecommendation() {
         )}
       </section>
 
-      {groups.length > 0 && (
+      {analysis && (
         <section className="panel">
-          <h2>Suggested doctors by specialty</h2>
-          {groups.map((group) => (
-            <div key={`${group.specialty}-${group.disease_candidate}`} className="group">
-              <h3>
-                {group.doctors?.[0]?.specialization || group.specialty}
-                <span className="group-sub"> · {group.disease_candidate?.replace(/_/g, ' ')}</span>
-              </h3>
-              {group.doctors?.length ? (
-                <div className="cards">
-                  {group.doctors.map((doctor) => (
-                    <DoctorCard key={doctor.doctor_id} doctor={doctor} />
-                  ))}
+          <h2>2. Recommended doctors</h2>
+
+          {selectedSpecialty ? (
+            <>
+              <p className="hint">
+                Doctors matching the recommended specialty <strong>{selectedSpecialty}</strong>.
+                Use the filters to refine the list.
+              </p>
+
+              <div className="filters">
+                <label>
+                  City
+                  <select
+                    value={selectedCity}
+                    onChange={(e) => {
+                      setSelectedCity(e.target.value)
+                      setPage(1)
+                    }}
+                  >
+                    <option value="">Any city</option>
+                    {cities.map((city) => (
+                      <option key={city} value={city}>
+                        {city}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Sort by
+                  <select value={form.sort} onChange={(e) => updateForm('sort', e.target.value)}>
+                    {SORT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Max fee (₹)
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    value={form.maxFee}
+                    onChange={(e) => updateForm('maxFee', e.target.value)}
+                    placeholder="e.g. 1500"
+                  />
+                </label>
+
+                <label>
+                  Min rating (0–5)
+                  <input
+                    type="number"
+                    min="0"
+                    max="5"
+                    step="0.1"
+                    value={form.minRating}
+                    onChange={(e) => updateForm('minRating', e.target.value)}
+                    placeholder="e.g. 4"
+                  />
+                </label>
+
+                <label>
+                  Max distance (km)
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.maxDistanceKm}
+                    onChange={(e) => updateForm('maxDistanceKm', e.target.value)}
+                    placeholder="e.g. 25"
+                  />
+                </label>
+
+                <label>
+                  Your latitude
+                  <input
+                    type="number"
+                    step="any"
+                    value={form.latitude}
+                    onChange={(e) => updateForm('latitude', e.target.value)}
+                    placeholder="e.g. 19.2183"
+                  />
+                </label>
+
+                <label>
+                  Your longitude
+                  <input
+                    type="number"
+                    step="any"
+                    value={form.longitude}
+                    onChange={(e) => updateForm('longitude', e.target.value)}
+                    placeholder="e.g. 72.9781"
+                  />
+                </label>
+
+                <div className="filter-actions">
+                  <button type="button" className="secondary" onClick={handleUseMyLocation}>
+                    Use my location
+                  </button>
+                  <button type="button" className="primary" onClick={handleApply}>
+                    Apply filters
+                  </button>
+                  <button type="button" className="secondary" onClick={handleClear}>
+                    Clear
+                  </button>
                 </div>
-              ) : (
-                <p className="hint">
-                  No doctors are currently available for this specialty with the selected filters.
+              </div>
+
+              {locationStatus && (
+                <p className={locationStatus.type === 'error' ? 'alert error' : 'hint'}>
+                  {locationStatus.text}
                 </p>
               )}
-            </div>
-          ))}
+              {filterError && <p className="alert error">{filterError}</p>}
+
+              {loadingDoctors && <p className="hint">Loading doctors…</p>}
+
+              {doctorsError && <p className="alert error">{doctorsError}</p>}
+
+              {!loadingDoctors && !doctorsError && (
+                <>
+                  <p className="hint">
+                    {result.total} doctor{result.total === 1 ? '' : 's'} found for{' '}
+                    <strong>{selectedSpecialty}</strong>.
+                  </p>
+                  {result.doctors.length === 0 ? (
+                    <p className="empty">
+                      {message ||
+                        'No doctors are currently available for this specialty with the selected filters.'}
+                    </p>
+                  ) : (
+                    <div className="cards">
+                      {result.doctors.map((doctor) => (
+                        <DoctorCard key={doctor.doctor_id} doctor={doctor} />
+                      ))}
+                    </div>
+                  )}
+
+                  {totalPages > 1 && (
+                    <div className="row pager">
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={page <= 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      >
+                        Previous
+                      </button>
+                      <span className="hint">
+                        Page {result.page} of {totalPages}
+                      </span>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={page >= totalPages}
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          ) : (
+            <p className="empty">
+              No specialty could be mapped to these symptoms, so no doctors are shown.
+            </p>
+          )}
         </section>
       )}
-
-      <section className="panel">
-        <h2>2. Browse the doctor directory</h2>
-        <div className="filters">
-          <label>
-            Specialty
-            <select
-              value={selectedSpecialty}
-              onChange={(e) => {
-                setSelectedSpecialty(e.target.value)
-                setPage(1)
-              }}
-            >
-              <option value="">Select a specialty…</option>
-              {specialties.map((specialty) => (
-                <option key={specialty} value={specialty}>
-                  {specialty}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            City
-            <select
-              value={selectedCity}
-              onChange={(e) => {
-                setSelectedCity(e.target.value)
-                setPage(1)
-              }}
-            >
-              <option value="">Any city</option>
-              {cities.map((city) => (
-                <option key={city} value={city}>
-                  {city}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Sort by
-            <select value={form.sort} onChange={(e) => updateForm('sort', e.target.value)}>
-              {SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Max fee (₹)
-            <input
-              type="number"
-              min="0"
-              step="50"
-              value={form.maxFee}
-              onChange={(e) => updateForm('maxFee', e.target.value)}
-              placeholder="e.g. 1500"
-            />
-          </label>
-
-          <label>
-            Min rating (0–5)
-            <input
-              type="number"
-              min="0"
-              max="5"
-              step="0.1"
-              value={form.minRating}
-              onChange={(e) => updateForm('minRating', e.target.value)}
-              placeholder="e.g. 4"
-            />
-          </label>
-
-          <label>
-            Max distance (km)
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={form.maxDistanceKm}
-              onChange={(e) => updateForm('maxDistanceKm', e.target.value)}
-              placeholder="e.g. 25"
-            />
-          </label>
-
-          <label>
-            Your latitude
-            <input
-              type="number"
-              step="any"
-              value={form.latitude}
-              onChange={(e) => updateForm('latitude', e.target.value)}
-              placeholder="e.g. 19.2183"
-            />
-          </label>
-
-          <label>
-            Your longitude
-            <input
-              type="number"
-              step="any"
-              value={form.longitude}
-              onChange={(e) => updateForm('longitude', e.target.value)}
-              placeholder="e.g. 72.9781"
-            />
-          </label>
-
-          <div className="filter-actions">
-            <button type="button" className="secondary" onClick={handleUseMyLocation}>
-              Use my location
-            </button>
-            <button type="button" className="primary" onClick={handleApply}>
-              Apply filters
-            </button>
-            <button type="button" className="secondary" onClick={handleClear}>
-              Clear
-            </button>
-          </div>
-        </div>
-
-        {locationStatus && (
-          <p className={locationStatus.type === 'error' ? 'alert error' : 'hint'}>
-            {locationStatus.text}
-          </p>
-        )}
-        {filterError && <p className="alert error">{filterError}</p>}
-
-        {!selectedSpecialty && (
-          <p className="empty">
-            Select a specialty to see matching doctors. Distances are only shown when you provide
-            your coordinates.
-          </p>
-        )}
-
-        {selectedSpecialty && loadingDoctors && <p className="hint">Loading doctors…</p>}
-
-        {selectedSpecialty && doctorsError && <p className="alert error">{doctorsError}</p>}
-
-        {selectedSpecialty && !loadingDoctors && !doctorsError && (
-          <>
-            <p className="hint">
-              {result.total} doctor{result.total === 1 ? '' : 's'} found for{' '}
-              <strong>{selectedSpecialty}</strong>.
-            </p>
-            {result.doctors.length === 0 ? (
-              <p className="empty">
-                {message ||
-                  'No doctors are currently available for this specialty with the selected filters.'}
-              </p>
-            ) : (
-              <div className="cards">
-                {result.doctors.map((doctor) => (
-                  <DoctorCard key={doctor.doctor_id} doctor={doctor} />
-                ))}
-              </div>
-            )}
-
-            {totalPages > 1 && (
-              <div className="row pager">
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  Previous
-                </button>
-                <span className="hint">
-                  Page {result.page} of {totalPages}
-                </span>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                >
-                  Next
-                </button>
-              </div>
-            )}
-          </>
-        )}
-      </section>
     </div>
   )
 }

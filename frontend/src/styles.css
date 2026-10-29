@@ -347,19 +347,6 @@ label {
 }
 
 /* --- doctor cards --- */
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 8px;
-}
-
-.group-sub {
-  color: var(--muted);
-  font-weight: 400;
-  font-size: 13px;
-}
-
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
