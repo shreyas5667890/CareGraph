@@ -94,8 +94,7 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        Educational prototype. Model output is not a diagnosis. Doctor directory
-        records are synthetic demo data — verify real providers before patient use.
+        Educational prototype. Model output is not a diagnosis.
       </footer>
     </div>
   )

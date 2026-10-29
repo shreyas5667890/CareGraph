@@ -39,7 +39,6 @@ export default function DoctorRecommendation() {
 
   const [result, setResult] = useState(EMPTY_RESULT)
   const [message, setMessage] = useState(null)
-  const [notice, setNotice] = useState(null)
   const [loadingDoctors, setLoadingDoctors] = useState(false)
   const [doctorsError, setDoctorsError] = useState(null)
   const [page, setPage] = useState(1)
@@ -63,7 +62,6 @@ export default function DoctorRecommendation() {
     if (!selectedSpecialty) {
       setResult(EMPTY_RESULT)
       setMessage(null)
-      setNotice(null)
       setDoctorsError(null)
       return
     }
@@ -91,7 +89,6 @@ export default function DoctorRecommendation() {
         pageSize: data.page_size ?? 20,
       })
       setMessage(data.message || null)
-      setNotice(data.notice || null)
     } catch (err) {
       if (current !== requestId.current) return
       setResult(EMPTY_RESULT)
@@ -329,9 +326,6 @@ export default function DoctorRecommendation() {
       {groups.length > 0 && (
         <section className="panel">
           <h2>Suggested doctors by specialty</h2>
-          {recommendation.doctor_directory_notice && (
-            <p className="alert warn">{recommendation.doctor_directory_notice}</p>
-          )}
           {groups.map((group) => (
             <div key={`${group.specialty}-${group.disease_candidate}`} className="group">
               <h3>
@@ -482,7 +476,6 @@ export default function DoctorRecommendation() {
           </p>
         )}
         {filterError && <p className="alert error">{filterError}</p>}
-        {notice && <p className="alert warn">{notice}</p>}
 
         {!selectedSpecialty && (
           <p className="empty">

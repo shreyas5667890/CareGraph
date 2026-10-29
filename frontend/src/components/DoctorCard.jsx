@@ -1,6 +1,3 @@
-const DEMO_NOTICE =
-  'Synthetic demo record — fictional doctor and clinic with approximate coordinates.'
-
 function formatRupees(value) {
   if (value === null || value === undefined || value === '') return 'Not listed'
   const number = Number(value)
@@ -35,7 +32,6 @@ function mapLink(doctor) {
 export default function DoctorCard({ doctor }) {
   const distance = formatDistance(doctor.distance_km)
   const link = mapLink(doctor)
-  const isDemo = (doctor.data_status || '').toLowerCase().includes('synthetic')
 
   return (
     <article className="doctor-card">
@@ -86,8 +82,6 @@ export default function DoctorCard({ doctor }) {
         )}
         <span className="doctor-id">ID: {doctor.doctor_id}</span>
       </footer>
-
-      {isDemo && <p className="demo-notice">{DEMO_NOTICE}</p>}
     </article>
   )
 }

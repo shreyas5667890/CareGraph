@@ -448,15 +448,6 @@ label {
   color: var(--muted);
 }
 
-.demo-notice {
-  margin: 0;
-  font-size: 11px;
-  color: var(--warn);
-  background: #fff7e6;
-  border-radius: 6px;
-  padding: 6px 8px;
-}
-
 /* --- admin --- */
 .admin-head {
   display: flex;
