@@ -155,17 +155,14 @@ class AvailabilityTests(AppointmentTestCase):
         _, status = get_day_availability("BK1", far, recommender=REC, path=TEST_DB)
         self.assertEqual(status, 400)
 
-    def test_past_slots_today_are_not_available(self):
+    def test_all_slots_today_are_available_for_the_demo(self):
         payload, status = get_day_availability("BK1", date.today().isoformat(),
                                                recommender=REC, path=TEST_DB)
         self.assertEqual(status, 200)
-        now = datetime.now()
+        self.assertTrue(payload["slots"])
         for slot in payload["slots"]:
-            hour, minute = (int(part) for part in slot["start"].split(":"))
-            if datetime.combine(date.today(), datetime.min.time()).replace(
-                hour=hour, minute=minute
-            ) < now:
-                self.assertFalse(slot["available"], slot)
+            self.assertTrue(slot["available"], slot)
+            self.assertIsNone(slot["reason"], slot)
 
     def test_open_dates_summarises_bookability(self):
         payload, status = list_open_dates("BK1", start=self.tomorrow, days=3,
@@ -252,17 +249,16 @@ class CreateAppointmentTests(AppointmentTestCase):
         _, status = self.book(day=yesterday)
         self.assertEqual(status, 400)
 
-    def test_past_time_today_is_rejected(self):
-        if datetime.now().hour < 1:
-            self.skipTest("Requires the clock to be past 01:00 so 09:00 has elapsed.")
+    def test_any_remaining_slot_today_can_be_booked_for_the_demo(self):
         today = date.today().isoformat()
-        # Book far into the past on today's date via a 00:00 slot.
+        # Open the whole day, then confirm an early slot is still bookable today
+        # regardless of the current clock time (demo behaviour).
         payload, status = set_doctor_availability(
             "BK1", [{"day_of_week": date.today().weekday(), "start_time": "00:00",
                      "end_time": "23:00"}], recommender=REC, path=TEST_DB)
         self.assertEqual(status, 200)
         payload, status = self.book(day=today, start="00:00")
-        self.assertEqual(status, 400, payload)
+        self.assertEqual(status, 201, payload)
 
     def test_invalid_date_and_time_are_rejected(self):
         _, status = create_appointment("P1", "BK1", "31-12-2026", "09:00",

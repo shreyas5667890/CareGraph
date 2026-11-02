@@ -30,7 +30,6 @@ from doctor_recommender_sqlite import doctor_recommender as default_recommender
 from schema import connect, database_path, ensure_schema
 
 SLOT_MINUTES_DEFAULT = 30
-BOOKING_LEAD_MINUTES = 30
 MAX_ADVANCE_DAYS = 90
 CONSULTATION_TYPES = ("In-person", "Teleconsultation")
 DEFAULT_CONSULTATION_TYPE = "In-person"
@@ -48,12 +47,14 @@ DAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 
 # Deterministic default working patterns. The pattern for a doctor is chosen from
 # their Doctor_ID, so schedules are always per-doctor and never one hardcoded
-# universal schedule shared by everyone.
+# universal schedule shared by everyone. Every pattern covers all seven days so
+# that each doctor always has bookable demo slots, and the patterns still differ
+# per doctor through their working hours.
 DEFAULT_SCHEDULE_PATTERNS = (
-    {"days": (0, 1, 2, 3, 4), "blocks": (("09:00", "13:00"), ("14:00", "18:00"))},
-    {"days": (0, 1, 2, 3, 4, 5), "blocks": (("10:00", "14:00"), ("15:00", "19:00"))},
-    {"days": (0, 1, 2, 3, 4), "blocks": (("08:30", "12:30"), ("16:00", "20:00"))},
-    {"days": (1, 2, 3, 4, 5, 6), "blocks": (("09:30", "13:30"), ("15:30", "18:30"))},
+    {"days": (0, 1, 2, 3, 4, 5, 6), "blocks": (("09:00", "13:00"), ("14:00", "18:00"))},
+    {"days": (0, 1, 2, 3, 4, 5, 6), "blocks": (("10:00", "14:00"), ("15:00", "19:00"))},
+    {"days": (0, 1, 2, 3, 4, 5, 6), "blocks": (("08:30", "12:30"), ("16:00", "20:00"))},
+    {"days": (0, 1, 2, 3, 4, 5, 6), "blocks": (("09:30", "13:30"), ("15:30", "18:30"))},
 )
 
 
@@ -137,15 +138,31 @@ def _seed_default_availability(con: sqlite3.Connection, doctor_id: str) -> None:
 
 
 def _ensure_availability(con: sqlite3.Connection, doctor_id: str) -> str:
-    """Return the availability source, generating the default schedule if needed."""
-    row = con.execute(
-        'SELECT "Source" FROM "doctor_availability" WHERE "Doctor_ID" = ? LIMIT 1',
+    """Return the availability source, generating/refreshing the default schedule.
+
+    An administrator-configured schedule is always preserved. A doctor who is still
+    on the generated default schedule is refreshed when the stored rows no longer
+    cover all seven days, so an updated default pattern takes effect without wiping
+    administrator edits.
+    """
+    rows = con.execute(
+        'SELECT DISTINCT "Source", "Day_Of_Week" FROM "doctor_availability" WHERE "Doctor_ID" = ?',
         (doctor_id,),
-    ).fetchone()
-    if row is None:
+    ).fetchall()
+    if not rows:
         _seed_default_availability(con, doctor_id)
         return AVAILABILITY_SOURCE_DEFAULT
-    return row["Source"] or AVAILABILITY_SOURCE_DEFAULT
+
+    sources = {row["Source"] or AVAILABILITY_SOURCE_DEFAULT for row in rows}
+    if AVAILABILITY_SOURCE_ADMIN in sources:
+        return AVAILABILITY_SOURCE_ADMIN
+    if len({row["Day_Of_Week"] for row in rows}) < 7:
+        con.execute(
+            'DELETE FROM "doctor_availability" WHERE "Doctor_ID" = ? AND "Source" = ?',
+            (doctor_id, AVAILABILITY_SOURCE_DEFAULT),
+        )
+        _seed_default_availability(con, doctor_id)
+    return AVAILABILITY_SOURCE_DEFAULT
 
 
 def _blocks_for_weekday(con: sqlite3.Connection, doctor_id: str, weekday: int) -> list[sqlite3.Row]:
@@ -172,11 +189,15 @@ def _booked_starts(
 
 
 def _build_day(
-    con: sqlite3.Connection, doctor_id: str, day: date_cls, *, now: datetime | None = None
+    con: sqlite3.Connection, doctor_id: str, day: date_cls
 ) -> tuple[list[dict], list[dict], str]:
-    """Return (slots, working_hours, consultation_type) for one calendar day."""
-    now = now or datetime.now()
-    cutoff = now + timedelta(minutes=BOOKING_LEAD_MINUTES)
+    """Return (slots, working_hours, consultation_type) for one calendar day.
+
+    Demo behaviour: every generated slot is offered as available unless it is
+    already booked. Past dates are still rejected before this point, so a slot is
+    never offered for a day that has already passed, and booked slots stay
+    unavailable so double-booking can still be demonstrated.
+    """
     booked = _booked_starts(con, doctor_id, day.isoformat())
     slots: list[dict] = []
     working_hours: list[dict] = []
@@ -193,16 +214,13 @@ def _build_day(
             {"start": block["Start_Time"], "end": block["End_Time"], "slot_minutes": slot_minutes}
         )
         for slot_start, slot_end in _block_slots(start, end, slot_minutes):
-            slot_dt = datetime.combine(day, _parse_time(slot_start))
-            is_future = slot_dt >= cutoff
             is_free = slot_start not in booked
-            available = bool(is_future and is_free)
             slots.append(
                 {
                     "start": slot_start,
                     "end": slot_end,
-                    "available": available,
-                    "reason": None if available else ("past" if not is_future else "booked"),
+                    "available": bool(is_free),
+                    "reason": None if is_free else "booked",
                 }
             )
     return slots, working_hours, consultation_type
@@ -502,8 +520,6 @@ def _book(
     match = next((slot for slot in slots if slot["start"] == start_hhmm), None)
     if match is None:
         return None, "not_a_slot"
-    if not match["available"] and match["reason"] != "booked":
-        return None, "past"
     clash = con.execute(
         'SELECT 1 FROM "appointments" WHERE "Doctor_ID" = ? AND "Appointment_Date" = ? '
         'AND "Start_Time" = ? AND "Status" = ?'
@@ -592,8 +608,6 @@ def create_appointment(
                     "success": False,
                     "error": "The selected time is not one of this doctor's appointment slots.",
                 }, 400
-            if slot_end == "past":
-                return {"success": False, "error": "That slot is in the past or too soon to book."}, 400
             return {
                 "success": False,
                 "error": "That slot has just been booked by someone else. Please choose another.",
@@ -771,8 +785,6 @@ def reschedule_appointment(
                     "success": False,
                     "error": "The selected time is not one of this doctor's appointment slots.",
                 }, 400
-            if slot_end == "past":
-                return {"success": False, "error": "That slot is in the past or too soon to book."}, 400
             return {
                 "success": False,
                 "error": "That slot has just been booked by someone else. Please choose another.",
