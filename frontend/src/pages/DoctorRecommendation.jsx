@@ -1,9 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DoctorCard from '../components/DoctorCard.jsx'
-import { analyzeSymptoms, fetchDoctors, fetchSpecialties } from '../api/client.js'
+import ComparePanel from '../components/ComparePanel.jsx'
+import BookingModal from '../components/BookingModal.jsx'
+import {
+  analyzeSymptoms,
+  compareDoctors,
+  fetchRankedDoctors,
+  fetchSpecialties,
+} from '../api/client.js'
+
+const PAGE_SIZE = 20
+const MAX_COMPARE = 3
 
 const SORT_OPTIONS = [
-  { value: 'recommended', label: 'Recommended' },
+  { value: 'recommended', label: 'Recommended (ranking score)' },
   { value: 'rating', label: 'Highest rating' },
   { value: 'fees', label: 'Lowest consultation fee' },
   { value: 'distance', label: 'Nearest doctor' },
@@ -19,9 +29,36 @@ const EMPTY_FILTERS = {
   sort: 'recommended',
 }
 
-const EMPTY_RESULT = { doctors: [], total: 0, page: 1, pageSize: 20 }
+function isBlank(value) {
+  return value === null || value === undefined || value === '' || Number.isNaN(Number(value))
+}
 
-export default function DoctorRecommendation() {
+// Sort with missing values last and a deterministic doctor_id tie-breaker.
+function compareMissingLast(a, b, valueOf, direction) {
+  const av = valueOf(a)
+  const bv = valueOf(b)
+  const aMissing = isBlank(av)
+  const bMissing = isBlank(bv)
+  if (aMissing && bMissing) return String(a.doctor_id).localeCompare(String(b.doctor_id))
+  if (aMissing) return 1
+  if (bMissing) return -1
+  const diff = (Number(av) - Number(bv)) * direction
+  if (diff !== 0) return diff
+  return String(a.doctor_id).localeCompare(String(b.doctor_id))
+}
+
+// The backend already returns the ranking order for 'recommended'; the other
+// options re-sort the same scored records client-side.
+function sortDoctors(list, sort) {
+  const copy = [...list]
+  if (sort === 'rating') return copy.sort((a, b) => compareMissingLast(a, b, (d) => d.rating_out_of_5, -1))
+  if (sort === 'fees') return copy.sort((a, b) => compareMissingLast(a, b, (d) => d.consultation_fee_inr, 1))
+  if (sort === 'distance') return copy.sort((a, b) => compareMissingLast(a, b, (d) => d.distance_km, 1))
+  if (sort === 'experience') return copy.sort((a, b) => compareMissingLast(a, b, (d) => d.experience_years, -1))
+  return copy
+}
+
+export default function DoctorRecommendation({ patient, onPatientChange }) {
   const [symptomText, setSymptomText] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState(null)
@@ -36,12 +73,24 @@ export default function DoctorRecommendation() {
   const [applied, setApplied] = useState(EMPTY_FILTERS)
   const [locationStatus, setLocationStatus] = useState(null)
 
-  const [result, setResult] = useState(EMPTY_RESULT)
-  const [message, setMessage] = useState(null)
+  const [rankedDoctors, setRankedDoctors] = useState([])
+  const [total, setTotal] = useState(0)
   const [loadingDoctors, setLoadingDoctors] = useState(false)
   const [doctorsError, setDoctorsError] = useState(null)
+  const [rankNotice, setRankNotice] = useState(null)
+  const [scoreDisclaimer, setScoreDisclaimer] = useState(null)
   const [page, setPage] = useState(1)
   const [filterError, setFilterError] = useState(null)
+
+  const [compareIds, setCompareIds] = useState([])
+  const [compareMessage, setCompareMessage] = useState(null)
+  const [compareOpen, setCompareOpen] = useState(false)
+  const [compareRows, setCompareRows] = useState([])
+  const [compareLoading, setCompareLoading] = useState(false)
+  const [compareError, setCompareError] = useState(null)
+  const [compareDisclaimer, setCompareDisclaimer] = useState(null)
+
+  const [bookingTarget, setBookingTarget] = useState(null)
 
   const requestId = useRef(0)
 
@@ -58,16 +107,17 @@ export default function DoctorRecommendation() {
 
   const loadDoctors = useCallback(async () => {
     if (!selectedSpecialty) {
-      setResult(EMPTY_RESULT)
-      setMessage(null)
+      setRankedDoctors([])
+      setTotal(0)
       setDoctorsError(null)
+      setRankNotice(null)
       return
     }
     const current = ++requestId.current
     setLoadingDoctors(true)
     setDoctorsError(null)
     try {
-      const data = await fetchDoctors({
+      const data = await fetchRankedDoctors({
         specialty: selectedSpecialty,
         city: selectedCity || undefined,
         user_latitude: applied.latitude || undefined,
@@ -75,27 +125,30 @@ export default function DoctorRecommendation() {
         max_distance_km: applied.maxDistanceKm || undefined,
         max_fee: applied.maxFee || undefined,
         min_rating: applied.minRating || undefined,
-        sort: applied.sort || 'recommended',
-        page,
-        page_size: 20,
       })
       if (current !== requestId.current) return
-      setResult({
-        doctors: data.doctors || [],
-        total: data.total ?? (data.doctors || []).length,
-        page: data.page ?? page,
-        pageSize: data.page_size ?? 20,
-      })
-      setMessage(data.message || null)
+      setRankedDoctors(data.doctors || [])
+      setTotal(data.total ?? (data.doctors || []).length)
+      setRankNotice(data.notice || null)
+      setScoreDisclaimer(data.score_disclaimer || null)
     } catch (err) {
       if (current !== requestId.current) return
-      setResult(EMPTY_RESULT)
-      setMessage(null)
+      setRankedDoctors([])
+      setTotal(0)
+      setRankNotice(null)
       setDoctorsError(err.message || 'Could not load doctors.')
     } finally {
       if (current === requestId.current) setLoadingDoctors(false)
     }
-  }, [selectedSpecialty, selectedCity, applied, page])
+  }, [
+    selectedSpecialty,
+    selectedCity,
+    applied.latitude,
+    applied.longitude,
+    applied.maxDistanceKm,
+    applied.maxFee,
+    applied.minRating,
+  ])
 
   useEffect(() => {
     loadDoctors()
@@ -116,6 +169,8 @@ export default function DoctorRecommendation() {
       setRecommendation(data.recommendation || null)
       const candidates = data.recommendation?.ranked_candidates || []
       const suggested = candidates.find((c) => c.possible_specialty)?.possible_specialty
+      setCompareIds([])
+      setCompareMessage(null)
       if (suggested) {
         setSelectedSpecialty(suggested)
         setPage(1)
@@ -227,7 +282,56 @@ export default function DoctorRecommendation() {
     [analysis],
   )
 
-  const totalPages = Math.max(1, Math.ceil((result.total || 0) / (result.pageSize || 20)))
+  const displayDoctors = useMemo(
+    () => sortDoctors(rankedDoctors, applied.sort),
+    [rankedDoctors, applied.sort],
+  )
+  const totalPages = Math.max(1, Math.ceil(displayDoctors.length / PAGE_SIZE))
+  const pagedDoctors = displayDoctors.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  function toggleCompare(doctor) {
+    setCompareMessage(null)
+    setCompareIds((prev) => {
+      if (prev.includes(doctor.doctor_id)) {
+        return prev.filter((id) => id !== doctor.doctor_id)
+      }
+      if (prev.length >= MAX_COMPARE) {
+        setCompareMessage(`You can compare at most ${MAX_COMPARE} doctors. Remove one first.`)
+        return prev
+      }
+      return [...prev, doctor.doctor_id]
+    })
+  }
+
+  async function openCompare() {
+    if (compareIds.length < 1) {
+      setCompareMessage('Select at least one doctor to compare.')
+      return
+    }
+    setCompareOpen(true)
+    setCompareLoading(true)
+    setCompareError(null)
+    setCompareRows([])
+    try {
+      const data = await compareDoctors(compareIds, {
+        specialty: selectedSpecialty || undefined,
+        latitude: applied.latitude || undefined,
+        longitude: applied.longitude || undefined,
+      })
+      setCompareRows(data.doctors || [])
+      setCompareDisclaimer(data.score_disclaimer || null)
+    } catch (err) {
+      setCompareError(err.message || 'Could not load the comparison.')
+    } finally {
+      setCompareLoading(false)
+    }
+  }
+
+  function removeFromCompare(doctorId) {
+    setCompareIds((prev) => prev.filter((id) => id !== doctorId))
+    setCompareRows((prev) => prev.filter((doctor) => doctor.doctor_id !== doctorId))
+    setCompareOpen((prev) => (compareIds.length <= 1 ? false : prev))
+  }
 
   return (
     <div className="stack">
@@ -327,8 +431,8 @@ export default function DoctorRecommendation() {
           {selectedSpecialty ? (
             <>
               <p className="hint">
-                Doctors matching the recommended specialty <strong>{selectedSpecialty}</strong>.
-                Use the filters to refine the list.
+                Doctors matching the recommended specialty <strong>{selectedSpecialty}</strong>,
+                ordered by the recommendation score. Use the filters to refine the list.
               </p>
 
               <div className="filters">
@@ -440,25 +544,65 @@ export default function DoctorRecommendation() {
               )}
               {filterError && <p className="alert error">{filterError}</p>}
 
-              {loadingDoctors && <p className="hint">Loading doctors…</p>}
+              <div className="compare-bar">
+                <span className="hint">
+                  {compareIds.length} of {MAX_COMPARE} doctors selected for comparison.
+                </span>
+                <div className="row">
+                  <button
+                    type="button"
+                    className="primary"
+                    onClick={openCompare}
+                    disabled={compareIds.length === 0}
+                  >
+                    Compare ({compareIds.length})
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => {
+                      setCompareIds([])
+                      setCompareMessage(null)
+                    }}
+                    disabled={compareIds.length === 0}
+                  >
+                    Clear selection
+                  </button>
+                </div>
+              </div>
+              {compareMessage && <p className="alert warn">{compareMessage}</p>}
 
+              {loadingDoctors && <p className="hint">Loading doctors…</p>}
               {doctorsError && <p className="alert error">{doctorsError}</p>}
 
               {!loadingDoctors && !doctorsError && (
                 <>
                   <p className="hint">
-                    {result.total} doctor{result.total === 1 ? '' : 's'} found for{' '}
+                    {total} doctor{total === 1 ? '' : 's'} found for{' '}
                     <strong>{selectedSpecialty}</strong>.
                   </p>
-                  {result.doctors.length === 0 ? (
+                  {scoreDisclaimer && <p className="hint">{scoreDisclaimer}</p>}
+                  {rankNotice && <p className="hint">{rankNotice}</p>}
+
+                  {displayDoctors.length === 0 ? (
                     <p className="empty">
-                      {message ||
-                        'No doctors are currently available for this specialty with the selected filters.'}
+                      No doctors are currently available for this specialty with the selected
+                      filters.
                     </p>
                   ) : (
                     <div className="cards">
-                      {result.doctors.map((doctor) => (
-                        <DoctorCard key={doctor.doctor_id} doctor={doctor} />
+                      {pagedDoctors.map((doctor) => (
+                        <DoctorCard
+                          key={doctor.doctor_id}
+                          doctor={doctor}
+                          selectable
+                          selected={compareIds.includes(doctor.doctor_id)}
+                          selectionDisabled={compareIds.length >= MAX_COMPARE}
+                          onToggleSelect={toggleCompare}
+                          onBook={(selected) =>
+                            setBookingTarget({ doctor: selected, specialty: selectedSpecialty })
+                          }
+                        />
                       ))}
                     </div>
                   )}
@@ -474,7 +618,7 @@ export default function DoctorRecommendation() {
                         Previous
                       </button>
                       <span className="hint">
-                        Page {result.page} of {totalPages}
+                        Page {page} of {totalPages}
                       </span>
                       <button
                         type="button"
@@ -495,6 +639,51 @@ export default function DoctorRecommendation() {
             </p>
           )}
         </section>
+      )}
+
+      {compareOpen && compareLoading && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal compare-modal">
+            <p className="hint">Loading comparison…</p>
+          </div>
+        </div>
+      )}
+
+      {compareOpen && !compareLoading && compareError && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal compare-modal">
+            <p className="alert error">{compareError}</p>
+            <div className="row">
+              <button type="button" className="secondary" onClick={() => setCompareOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {compareOpen && !compareLoading && !compareError && (
+        <ComparePanel
+          doctors={compareRows}
+          specialty={selectedSpecialty}
+          disclaimer={compareDisclaimer}
+          onRemove={removeFromCompare}
+          onBook={(doctor) => {
+            setCompareOpen(false)
+            setBookingTarget({ doctor, specialty: selectedSpecialty })
+          }}
+          onClose={() => setCompareOpen(false)}
+        />
+      )}
+
+      {bookingTarget && (
+        <BookingModal
+          doctor={bookingTarget.doctor}
+          specialty={bookingTarget.specialty}
+          patient={patient}
+          onPatientChange={onPatientChange}
+          onClose={() => setBookingTarget(null)}
+        />
       )}
     </div>
   )

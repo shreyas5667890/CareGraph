@@ -79,6 +79,92 @@ export function fetchDoctors(params) {
   return request(`/api/doctors${buildQuery(params)}`)
 }
 
+// --- ranking / comparison / availability -------------------------------------
+
+export function fetchRankedDoctors(params) {
+  return request(`/api/ranked-doctors${buildQuery(params)}`)
+}
+
+export function compareDoctors(doctorIds, { specialty, latitude, longitude } = {}) {
+  const body = { doctor_ids: doctorIds }
+  if (specialty) body.specialty = specialty
+  if (latitude !== undefined && latitude !== null && latitude !== '') {
+    body.user_latitude = latitude
+  }
+  if (longitude !== undefined && longitude !== null && longitude !== '') {
+    body.user_longitude = longitude
+  }
+  return request('/api/compare-doctors', { method: 'POST', body })
+}
+
+export function fetchDoctorDetail(doctorId, params) {
+  return request(`/api/doctors/${encodeURIComponent(doctorId)}${buildQuery(params)}`)
+}
+
+export function fetchDoctorSlots(doctorId, date) {
+  return request(`/api/doctors/${encodeURIComponent(doctorId)}/slots${buildQuery({ date })}`)
+}
+
+// --- patient API -------------------------------------------------------------
+
+// A signed-out patient session. Kept in one place so every caller agrees.
+export const EMPTY_PATIENT_SESSION = Object.freeze({
+  authenticated: false,
+  patientId: null,
+  username: null,
+  csrfToken: null,
+})
+
+// Normalise the login/me payloads into the shape the SPA stores in state.
+export function patientSessionFrom(data) {
+  if (!data || !data.authenticated) return { ...EMPTY_PATIENT_SESSION }
+  return {
+    authenticated: true,
+    patientId: data.patient?.patient_id ?? null,
+    username: data.patient?.username ?? null,
+    csrfToken: data.csrf_token ?? null,
+  }
+}
+
+export function patientRegister(payload) {
+  return request('/api/patient/register', { method: 'POST', body: payload })
+}
+
+export function patientLogin(username, password) {
+  return request('/api/patient/login', { method: 'POST', body: { username, password } })
+}
+
+export function patientLogout(csrfToken) {
+  return request('/api/patient/logout', { method: 'POST', csrfToken })
+}
+
+export function patientMe() {
+  return request('/api/patient/me')
+}
+
+export function fetchMyAppointments() {
+  return request('/api/patient/appointments')
+}
+
+export function createAppointment(payload, csrfToken) {
+  return request('/api/patient/appointments', { method: 'POST', body: payload, csrfToken })
+}
+
+export function cancelAppointment(appointmentId, csrfToken) {
+  return request(`/api/patient/appointments/${encodeURIComponent(appointmentId)}/cancel`, {
+    method: 'POST',
+    csrfToken,
+  })
+}
+
+export function rescheduleAppointment(appointmentId, payload, csrfToken) {
+  return request(`/api/patient/appointments/${encodeURIComponent(appointmentId)}/reschedule`, {
+    method: 'POST',
+    body: payload,
+    csrfToken,
+  })
+}
+
 // --- admin API ---------------------------------------------------------------
 
 export function adminLogin(username, password) {

@@ -28,7 +28,9 @@ import joblib
 import pandas as pd
 from flask import Flask, jsonify, request
 
+import schema
 from admin_routes import admin_bp
+from care_routes import care_bp
 from doctor_recommender_sqlite import doctor_recommender
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -62,6 +64,15 @@ app.config.update(
 )
 
 app.register_blueprint(admin_bp)
+app.register_blueprint(care_bp)
+
+# Create the additive patient/availability/appointment objects. This never
+# rewrites the existing doctors table or its records; if the database is
+# unreachable the existing read-only doctor features keep working.
+try:
+    schema.initialize()
+except Exception as _schema_error:  # pragma: no cover - depends on local data
+    print(f"WARNING: could not initialise the appointment schema: {_schema_error}")
 
 # Optional cross-origin access. The Vite dev server proxies /api, so this is only
 # needed when the frontend is hosted on a different origin. Restricted to one origin.

@@ -17,6 +17,7 @@ from admin_auth import (
     logout_admin,
     verify_credentials,
 )
+from appointments import set_doctor_availability
 from doctor_recommender_sqlite import doctor_recommender
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
@@ -134,4 +135,15 @@ def admin_update_doctor(doctor_id: str):
 @admin_required
 def admin_delete_doctor(doctor_id: str):
     result, status = doctor_recommender.delete_doctor(doctor_id)
+    return jsonify(result), status
+
+
+@admin_bp.put("/doctors/<path:doctor_id>/availability")
+@admin_required
+def admin_set_doctor_availability(doctor_id: str):
+    """Replace a doctor's weekly working blocks (drives bookable slots)."""
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"success": False, "error": "Send a JSON request body."}), 400
+    result, status = set_doctor_availability(doctor_id, body.get("blocks"))
     return jsonify(result), status
